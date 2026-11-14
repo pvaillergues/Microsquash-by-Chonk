@@ -1,30 +1,48 @@
-# Patrimoine de test — App Studio (Microsquash by Chonk)
+# Patrimoine de test — Microsquash
 
-Application de gestion du patrimoine de test (cas de test, campagnes, exécutions),
-construite avec Mistral Studio Apps.
+Application Mistral Studio de gestion du patrimoine de test (cas de test, exigences, campagnes) :
 
-- `apps/web` — frontend TanStack Start (vue inventaire avec recherche et filtres)
-- `apps/api` — API FastAPI (CRUD cas de test, projets, campagnes, avancement)
-- `apps/worker` — worker de workflows (imports, recalculs)
-- Base Postgres (capacité `postgres`)
+- **Inventaire** : recherche plein texte, filtres par projet, type et statut.
+- **Cycle de vie** : création, modification, passage de statut (brouillon → relu → exécuté → archivé), suppression.
+- **Tableau de bord** : volumétrie par statut, type et projet.
+- **Import / export CSV** (séparateur `;`, compatible Excel fr).
 
-## Mise en place
+## Structure
 
-    mistral login
-    mistral init patrimoine-test --preset app   # ou dans ce dépôt cloné
-    # renseigner MISTRAL_API_KEY dans .env
-    mistral dev
+| Emplacement | Contenu |
+| --- | --- |
+| `apps/api` | API FastAPI : routes `/api/v1/assets`, `/api/v1/stats`, import/export. |
+| `apps/web` | Interface TanStack Start : inventaire (`/assets`), création (`/assets/new`), fiche (`/assets/$assetId`). |
+| `packages/py/db` | Modèle `test_assets`, accès base de données, migration Alembic `pat01_test_assets`. |
+
+## Développer
+
+```bash
+mistral dev          # API + web + Postgres (Docker requis)
+```
+
+API sur `http://localhost:3000/api`, web sur `http://localhost:3001`.
 
 ## Déployer
 
-    git push
-    mistral deploy
+```bash
+mistral login
+git add -A && git commit -m "patrimoine" && git push
+mistral deploy --name microsquash-by-chonk --organization <votre-organisation>
+```
 
-Les secrets (ex. MISTRAL_API_KEY) se règlent dans l'onglet Secrets de l'app dans Studio.
+## Notes techniques
 
-## Prochaines étapes
+- Le fichier `uv.lock` n'est pas inclus (généré hors ligne) : le `Dockerfile.api` résout les
+  dépendances à la construction. Pour revenir à un build figé, exécuter `uv lock` puis rétablir
+  `--frozen` dans `deploy/docker/Dockerfile.api`.
+- L'interface n'utilise pas le client OpenAPI généré ; elle porte son propre client typé
+  (`apps/web/src/api/patrimoine.ts`). Après tout changement d'API, lancer
+  `bunx nx run fastapi-tanstack-start:gen-types` pour régénérer le client si vous souhaitez
+  l'adopter.
 
-- [ ] Import CSV/Excel depuis SquashTM
-- [ ] Vue détail d'un cas de test (pas à pas, exigences liées)
-- [ ] Tableau de bord qualité (taux de réussite par campagne)
-- [ ] Authentification et rôles
+## Colonnes du CSV d'import
+
+`reference` (obligatoire, unique) ; `name` (obligatoire) ; `project` ; `type`
+(`cas_de_test`, `exigence`, `campagne`) ; `status` (`brouillon`, `relu`, `execute`, `archive`) ;
+`owner` ; `description`. Les références existantes sont mises à jour, les autres créées.
